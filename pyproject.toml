@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mikrotik-mcp-server"
+version = "1.0.0"
+description = "MCP server for MikroTik RouterOS management"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{name = "clearminds"}]
+keywords = ["mcp", "mikrotik", "routeros", "network", "router"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+dependencies = [
+    "httpx>=0.28.1",
+    "fastmcp>=2.14.0,<3",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "paramiko>=3.0",
+]
+
+[project.urls]
+Repository = "https://github.com/clearminds/mikrotik-mcp-server"
+
+[project.scripts]
+mikrotik-mcp-server = "mikrotik_mcp_server.server:main"
