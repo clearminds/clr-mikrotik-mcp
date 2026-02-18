@@ -1,13 +1,13 @@
-# mikrotik-mcp-server
+# clr-mikrotik-mcp
 
 MikroTik RouterOS management via REST API and SSH
 
 ## Install
 
 ```bash
-pip install mikrotik-mcp-server
+pip install clr-mikrotik-mcp
 # or
-uvx mikrotik-mcp-server
+uvx clr-mikrotik-mcp
 ```
 
 ## Configuration
@@ -35,16 +35,16 @@ uvx mikrotik-mcp-server
 See `--help` for additional options:
 
 ```bash
-mikrotik-mcp-server --help
+clr-mikrotik-mcp --help
 ```
 
 ## Development
 
 ```bash
-git clone https://github.com/clearminds/mikrotik-mcp-server.git
-cd mikrotik-mcp-server
+git clone https://github.com/clearminds/clr-mikrotik-mcp.git
+cd clr-mikrotik-mcp
 uv sync
-uv run mikrotik-mcp-server
+uv run clr-mikrotik-mcp
 ```
 
 ## License

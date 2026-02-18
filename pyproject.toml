@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mikrotik-mcp-server"
+name = "clr-mikrotik-mcp"
 version = "1.0.0"
 description = "MCP server for MikroTik RouterOS management"
 requires-python = ">=3.11"
@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/clearminds/mikrotik-mcp-server"
+Repository = "https://github.com/clearminds/clr-mikrotik-mcp"
 
 [project.scripts]
-mikrotik-mcp-server = "mikrotik_mcp_server.server:main"
+clr-mikrotik-mcp = "clr_mikrotik_mcp.server:main"

@@ -8,8 +8,8 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from mikrotik_mcp_server.config import Settings
-from mikrotik_mcp_server.routeros_client import RouterOSClient
+from clr_mikrotik_mcp.config import Settings
+from clr_mikrotik_mcp.routeros_client import RouterOSClient
 
 mcp = FastMCP("MikroTik")
 _client: RouterOSClient | None = None
