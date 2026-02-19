@@ -17,10 +17,24 @@ class RouterOSClient:
     not available via REST (bridge host table, print stats, export, etc.).
     """
 
-    def __init__(self, username: str, password: str, ssh_key: str = "") -> None:
+    def __init__(
+        self,
+        username: str = "",
+        password: str = "",
+        ssh_key: str = "",
+        devices: dict[str, dict[str, str]] | None = None,
+    ) -> None:
         self.username = username
         self.password = password
         self.ssh_key = ssh_key
+        self.devices = devices or {}
+
+    def _get_auth(self, host: str) -> tuple[str, str]:
+        """Return (username, password) for a specific host."""
+        device_creds = self.devices.get(host, {})
+        username = device_creds.get("username", self.username)
+        password = device_creds.get("password", self.password)
+        return username, password
 
     def _port_open(self, host: str, port: int, timeout: float = 2.0) -> bool:
         """Check if a TCP port is open."""
@@ -56,13 +70,14 @@ class RouterOSClient:
         Returns parsed JSON response.
         """
         base_url = self._get_base_url(host)
+        username, password = self._get_auth(host)
         params = dict(filters or {})
         if proplist:
             params[".proplist"] = proplist
 
         with httpx.Client(
             base_url=base_url,
-            auth=(self.username, self.password),
+            auth=(username, password),
             verify=False,
             timeout=30.0,
         ) as client:
@@ -88,9 +103,10 @@ class RouterOSClient:
         Returns parsed JSON response.
         """
         base_url = self._get_base_url(host)
+        username, password = self._get_auth(host)
         with httpx.Client(
             base_url=base_url,
-            auth=(self.username, self.password),
+            auth=(username, password),
             verify=False,
             timeout=30.0,
         ) as client:
@@ -103,9 +119,10 @@ class RouterOSClient:
     def rest_put(self, host: str, path: str, body: dict[str, Any] | None = None) -> Any:
         """PUT request to RouterOS REST API."""
         base_url = self._get_base_url(host)
+        username, password = self._get_auth(host)
         with httpx.Client(
             base_url=base_url,
-            auth=(self.username, self.password),
+            auth=(username, password),
             verify=False,
             timeout=30.0,
         ) as client:
@@ -118,9 +135,10 @@ class RouterOSClient:
     def rest_delete(self, host: str, path: str) -> Any:
         """DELETE request to RouterOS REST API."""
         base_url = self._get_base_url(host)
+        username, password = self._get_auth(host)
         with httpx.Client(
             base_url=base_url,
-            auth=(self.username, self.password),
+            auth=(username, password),
             verify=False,
             timeout=30.0,
         ) as client:
@@ -142,6 +160,7 @@ class RouterOSClient:
 
         Returns command output as string.
         """
+        username, password = self._get_auth(host)
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
@@ -149,7 +168,7 @@ class RouterOSClient:
             connect_kwargs: dict[str, Any] = {
                 "hostname": host,
                 "port": 22,
-                "username": f"{self.username}+cet",
+                "username": f"{username}+cet",
                 "timeout": timeout,
                 "allow_agent": False,
                 "look_for_keys": False,
@@ -157,7 +176,7 @@ class RouterOSClient:
             if self.ssh_key:
                 connect_kwargs["key_filename"] = self.ssh_key
             else:
-                connect_kwargs["password"] = self.password
+                connect_kwargs["password"] = password
 
             client.connect(**connect_kwargs)
             _, stdout, stderr = client.exec_command(command, timeout=timeout)

@@ -322,15 +322,14 @@ def main() -> None:
 
     logger = logging.getLogger(__name__)
 
-    if not settings.mikrotik_password:
-        logger.error("MIKROTIK_PASSWORD is required")
-        sys.exit(1)
+    creds = settings.load_credentials()
 
-    logger.info("Starting MikroTik MCP Server (user: %s)", settings.mikrotik_username)
+    logger.info("Starting MikroTik MCP Server (user: %s)", creds.get("username", ""))
     _client = RouterOSClient(
-        settings.mikrotik_username,
-        settings.mikrotik_password,
-        settings.mikrotik_ssh_key,
+        username=creds.get("username", ""),
+        password=creds.get("password", ""),
+        ssh_key=creds.get("ssh_key", ""),
+        devices=creds.get("devices", {}),
     )
 
     try:
