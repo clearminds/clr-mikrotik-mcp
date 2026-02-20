@@ -15,6 +15,12 @@ class RouterOSClient:
 
     REST API is preferred (structured JSON). SSH is fallback for commands
     not available via REST (bridge host table, print stats, export, etc.).
+
+    Attributes:
+        username: Default username for device authentication.
+        password: Default password for device authentication.
+        ssh_key: Path to SSH private key file, or empty string if unused.
+        devices: Per-device credential overrides keyed by hostname/IP.
     """
 
     def __init__(
@@ -30,14 +36,31 @@ class RouterOSClient:
         self.devices = devices or {}
 
     def _get_auth(self, host: str) -> tuple[str, str]:
-        """Return (username, password) for a specific host."""
+        """Return (username, password) for a specific host.
+
+        Args:
+            host: Device IP or hostname to look up credentials for.
+
+        Returns:
+            A tuple of (username, password), using per-device overrides
+            if configured, otherwise falling back to the default credentials.
+        """
         device_creds = self.devices.get(host, {})
         username = device_creds.get("username", self.username)
         password = device_creds.get("password", self.password)
         return username, password
 
     def _port_open(self, host: str, port: int, timeout: float = 2.0) -> bool:
-        """Check if a TCP port is open."""
+        """Check if a TCP port is open.
+
+        Args:
+            host: Device IP or hostname to probe.
+            port: TCP port number to check.
+            timeout: Connection timeout in seconds.
+
+        Returns:
+            True if a TCP connection could be established, False otherwise.
+        """
         try:
             with socket.create_connection((host, port), timeout=timeout):
                 return True
@@ -45,7 +68,17 @@ class RouterOSClient:
             return False
 
     def _get_base_url(self, host: str) -> str:
-        """Probe HTTPS then HTTP, return base URL."""
+        """Probe HTTPS then HTTP, return base URL.
+
+        Args:
+            host: Device IP or hostname.
+
+        Returns:
+            The base URL string (e.g. ``https://10.20.10.1``).
+
+        Raises:
+            ConnectionError: If neither port 443 nor port 80 is reachable.
+        """
         if self._port_open(host, 443):
             return f"https://{host}"
         if self._port_open(host, 80):
@@ -67,7 +100,8 @@ class RouterOSClient:
             filters: Key-value filter params.
             proplist: Comma-separated property list.
 
-        Returns parsed JSON response.
+        Returns:
+            Parsed JSON response, or None if the response body is empty.
         """
         base_url = self._get_base_url(host)
         username, password = self._get_auth(host)
@@ -100,7 +134,8 @@ class RouterOSClient:
             path: API path.
             body: JSON body.
 
-        Returns parsed JSON response.
+        Returns:
+            Parsed JSON response, or None if the response body is empty.
         """
         base_url = self._get_base_url(host)
         username, password = self._get_auth(host)
@@ -117,7 +152,16 @@ class RouterOSClient:
             return resp.json()
 
     def rest_put(self, host: str, path: str, body: dict[str, Any] | None = None) -> Any:
-        """PUT request to RouterOS REST API."""
+        """Send a PUT request to the RouterOS REST API.
+
+        Args:
+            host: Device IP or hostname.
+            path: API path.
+            body: JSON body for the update.
+
+        Returns:
+            Parsed JSON response, or None if the response body is empty.
+        """
         base_url = self._get_base_url(host)
         username, password = self._get_auth(host)
         with httpx.Client(
@@ -133,7 +177,15 @@ class RouterOSClient:
             return resp.json()
 
     def rest_delete(self, host: str, path: str) -> Any:
-        """DELETE request to RouterOS REST API."""
+        """Send a DELETE request to the RouterOS REST API.
+
+        Args:
+            host: Device IP or hostname.
+            path: API path identifying the resource to remove.
+
+        Returns:
+            Parsed JSON response, or None if the response body is empty.
+        """
         base_url = self._get_base_url(host)
         username, password = self._get_auth(host)
         with httpx.Client(
@@ -158,7 +210,8 @@ class RouterOSClient:
             command: RouterOS CLI command.
             timeout: SSH timeout in seconds.
 
-        Returns command output as string.
+        Returns:
+            Command output as a string, with stderr appended if present.
         """
         username, password = self._get_auth(host)
         client = paramiko.SSHClient()

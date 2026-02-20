@@ -25,6 +25,9 @@ def mikrotik_identity(host: str) -> dict[str, Any]:
 
     Args:
         host: Device IP or hostname (e.g. "10.20.10.1").
+
+    Returns:
+        A dictionary containing the device identity.
     """
     return _client.rest_get(host, "/system/identity")
 
@@ -35,6 +38,9 @@ def mikrotik_version(host: str) -> dict[str, Any]:
 
     Args:
         host: Device IP or hostname.
+
+    Returns:
+        A dictionary containing system resource information.
     """
     return _client.rest_get(
         host,
@@ -49,6 +55,9 @@ def mikrotik_health(host: str) -> Any:
 
     Args:
         host: Device IP or hostname.
+
+    Returns:
+        Health sensor data from the device.
     """
     return _client.rest_get(host, "/system/health")
 
@@ -66,6 +75,9 @@ def mikrotik_interfaces(
     Args:
         host: Device IP or hostname.
         interface_type: Filter by type (e.g. "ether", "vlan", "bridge", "bonding").
+
+    Returns:
+        A list of interface dictionaries.
     """
     filters = {}
     if interface_type:
@@ -84,6 +96,9 @@ def mikrotik_addresses(host: str) -> list[dict[str, Any]]:
 
     Args:
         host: Device IP or hostname.
+
+    Returns:
+        A list of IP address dictionaries.
     """
     return _client.rest_get(
         host,
@@ -105,6 +120,9 @@ def mikrotik_arp(
     Args:
         host: Device IP or hostname.
         interface: Filter by interface name (e.g. "bridge-nn-16").
+
+    Returns:
+        A list of ARP entry dictionaries.
     """
     filters = {}
     if interface:
@@ -127,6 +145,9 @@ def mikrotik_dhcp_leases(
     Args:
         host: Device IP or hostname.
         server: Filter by DHCP server name (e.g. "nn-16").
+
+    Returns:
+        A list of DHCP lease dictionaries.
     """
     filters = {}
     if server:
@@ -149,6 +170,9 @@ def mikrotik_routes(
     Args:
         host: Device IP or hostname.
         dst: Filter by destination prefix (e.g. "10.20.22.0/24").
+
+    Returns:
+        A list of route entry dictionaries.
     """
     filters = {}
     if dst:
@@ -167,6 +191,9 @@ def mikrotik_neighbors(host: str) -> list[dict[str, Any]]:
 
     Args:
         host: Device IP or hostname.
+
+    Returns:
+        A list of neighbor entry dictionaries.
     """
     return _client.rest_get(
         host,
@@ -188,6 +215,9 @@ def mikrotik_firewall(
     Args:
         host: Device IP or hostname.
         chain: Filter by chain (e.g. "input", "forward", "output").
+
+    Returns:
+        A list of firewall filter rule dictionaries.
     """
     filters = {}
     if chain:
@@ -206,6 +236,9 @@ def mikrotik_nat(host: str) -> list[dict[str, Any]]:
 
     Args:
         host: Device IP or hostname.
+
+    Returns:
+        A list of NAT rule dictionaries.
     """
     return _client.rest_get(
         host,
@@ -236,7 +269,8 @@ def mikrotik_api(
         body: JSON body for POST/PUT/PATCH (e.g. {"address": "10.0.0.1/24", "interface": "ether1"}).
         proplist: Comma-separated properties to return (e.g. "name,address,interface").
 
-    Returns parsed JSON from the device.
+    Returns:
+        Parsed JSON from the device, or an error dictionary for unsupported methods.
     """
     if method.upper() == "GET":
         return _client.rest_get(host, path, proplist=proplist)
@@ -269,7 +303,8 @@ def mikrotik_ssh(
         host: Device IP or hostname.
         command: RouterOS CLI command (e.g. "/interface/bridge/host/print without-paging").
 
-    Returns command output as text.
+    Returns:
+        Command output as text.
     """
     return _client.ssh_command(host, command)
 
