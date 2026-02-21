@@ -14,6 +14,7 @@ from clr_mikrotik_mcp.routeros_client import RouterOSClient
 mcp = FastMCP("MikroTik")
 _client: RouterOSClient | None = None
 
+WRITE_TOOLS = ["mikrotik_ssh"]
 
 
 # ── System tools ─────────────────────────────────────────────────────
@@ -330,6 +331,12 @@ def main() -> None:
         default=None,
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
     )
+    parser.add_argument(
+        "--read-only",
+        action="store_true",
+        default=None,
+        help="Run in read-only mode (hide write tools)",
+    )
     args = parser.parse_args()
 
     transport = args.transport or settings.mikrotik_transport
@@ -366,6 +373,12 @@ def main() -> None:
         ssh_key=creds.get("ssh_key", ""),
         devices=creds.get("devices", {}),
     )
+
+    read_only = args.read_only if args.read_only is not None else settings.mikrotik_read_only
+    if read_only and WRITE_TOOLS:
+        for name in WRITE_TOOLS:
+            mcp.remove_tool(name)
+        logger.info("Read-only mode: %d write tools removed", len(WRITE_TOOLS))
 
     try:
         if transport == "stdio":

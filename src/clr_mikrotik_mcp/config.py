@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     mikrotik_ssh_key: str = ""  # Path to SSH private key (optional)
     mikrotik_transport: str = "stdio"
     mikrotik_log_level: str = "INFO"
+    mikrotik_read_only: bool = False
 
     model_config = {"env_prefix": ""}
 
