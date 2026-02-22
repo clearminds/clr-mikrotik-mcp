@@ -200,6 +200,42 @@ class RouterOSClient:
                 return None
             return resp.json()
 
+    def sftp_upload(self, host: str, filename: str, content: str, timeout: float = 30.0) -> None:
+        """Upload a string as a file to a RouterOS device via SFTP.
+
+        Args:
+            host: Device IP or hostname.
+            filename: Remote filename (placed in device root).
+            content: File content as a string.
+            timeout: Connection timeout in seconds.
+        """
+        username, password = self._get_auth(host)
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            connect_kwargs: dict[str, Any] = {
+                "hostname": host,
+                "port": 22,
+                "username": username,
+                "timeout": timeout,
+                "allow_agent": False,
+                "look_for_keys": False,
+            }
+            if self.ssh_key:
+                connect_kwargs["key_filename"] = self.ssh_key
+            else:
+                connect_kwargs["password"] = password
+
+            client.connect(**connect_kwargs)
+            sftp = client.open_sftp()
+            try:
+                with sftp.file(filename, "w") as f:
+                    f.write(content)
+            finally:
+                sftp.close()
+        finally:
+            client.close()
+
     def ssh_command(self, host: str, command: str, timeout: float = 30.0) -> str:
         """Execute a command via SSH on a RouterOS device.
 

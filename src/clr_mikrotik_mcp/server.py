@@ -14,7 +14,9 @@ from clr_mikrotik_mcp.routeros_client import RouterOSClient
 mcp = FastMCP("MikroTik")
 _client: RouterOSClient | None = None
 
-WRITE_TOOLS = ["mikrotik_ssh"]
+WRITE_TOOLS = ["mikrotik_ssh", "mikrotik_user_add", "mikrotik_ssh_key_import"]
+
+_VALID_SSH_KEY_PREFIXES = ("ssh-ed25519", "ssh-rsa", "ecdsa-sha2-", "sk-ssh-")
 
 
 # ── System tools ─────────────────────────────────────────────────────
@@ -246,6 +248,147 @@ def mikrotik_nat(host: str) -> list[dict[str, Any]]:
         "/ip/firewall/nat",
         proplist="chain,action,src-address,dst-address,protocol,dst-port,to-addresses,to-ports,comment,disabled",
     )
+
+
+# ── User & service tools ────────────────────────────────────────────
+
+
+@mcp.tool
+def mikrotik_users(host: str) -> list[dict[str, Any]]:
+    """List all user accounts on the device.
+
+    Args:
+        host: Device IP or hostname.
+
+    Returns:
+        A list of user account dictionaries.
+    """
+    return _client.rest_get(
+        host,
+        "/user",
+        proplist="name,group,address,disabled,comment",
+    )
+
+
+@mcp.tool
+def mikrotik_ssh_keys(host: str, user: str | None = None) -> list[dict[str, Any]]:
+    """List imported SSH public keys, optionally filtered by user.
+
+    Args:
+        host: Device IP or hostname.
+        user: Filter by username.
+
+    Returns:
+        A list of SSH key dictionaries.
+    """
+    filters = {}
+    if user:
+        filters["user"] = user
+    return _client.rest_get(
+        host,
+        "/user/ssh-keys",
+        filters=filters,
+        proplist="user,key-owner",
+    )
+
+
+@mcp.tool
+def mikrotik_services(host: str) -> list[dict[str, Any]]:
+    """List IP services (SSH, www, api, winbox, etc.) with status.
+
+    Args:
+        host: Device IP or hostname.
+
+    Returns:
+        A list of IP service dictionaries.
+    """
+    return _client.rest_get(
+        host,
+        "/ip/service",
+        proplist="name,port,address,disabled",
+    )
+
+
+@mcp.tool
+def mikrotik_user_add(
+    host: str,
+    name: str,
+    group: str,
+    password: str,
+    address: str = "",
+    comment: str = "",
+) -> dict[str, Any]:
+    """Create a new user account on the device.
+
+    Safety: refuses to create a user if one with the same name already exists,
+    and refuses names matching the currently authenticated user.
+
+    Args:
+        host: Device IP or hostname.
+        name: Username for the new account.
+        group: Permission group (e.g. "read", "write", "full"). Required.
+        password: Password for the new account.
+        address: Source IP restriction (e.g. "10.20.10.0/24"). Empty = any.
+        comment: Optional comment for the user account.
+
+    Returns:
+        The REST API response (created user resource).
+    """
+    auth_user, _ = _client._get_auth(host)
+    if name == auth_user:
+        return {"error": f"Refusing to create user '{name}': matches the authenticated user"}
+
+    existing = _client.rest_get(host, "/user", filters={"name": name}, proplist="name")
+    if existing:
+        return {"error": f"User '{name}' already exists on {host}"}
+
+    body: dict[str, Any] = {"name": name, "group": group, "password": password}
+    if address:
+        body["address"] = address
+    if comment:
+        body["comment"] = comment
+    return _client.rest_post(host, "/user", body)
+
+
+@mcp.tool
+def mikrotik_ssh_key_import(
+    host: str,
+    user: str,
+    public_key: str,
+) -> str:
+    """Import an SSH public key for a user.
+
+    Uploads the key via SFTP, imports it via CLI, and cleans up the temp file.
+    The user must already exist on the device.
+
+    Args:
+        host: Device IP or hostname.
+        user: Username to import the key for (must already exist).
+        public_key: SSH public key string (e.g. "ssh-ed25519 AAAA... comment").
+
+    Returns:
+        CLI output from the import command.
+    """
+    if not any(public_key.startswith(prefix) for prefix in _VALID_SSH_KEY_PREFIXES):
+        return f"Error: key must start with one of: {', '.join(_VALID_SSH_KEY_PREFIXES)}"
+
+    existing = _client.rest_get(host, "/user", filters={"name": user}, proplist="name")
+    if not existing:
+        return f"Error: user '{user}' does not exist on {host}"
+
+    filename = f"tmp-key-{user}.pub"
+    _client.sftp_upload(host, filename, public_key)
+    try:
+        result = _client.ssh_command(
+            host,
+            f"/user/ssh-keys/import public-key-file={filename} user={user}",
+        )
+    finally:
+        try:
+            _client.ssh_command(host, f"/file/remove {filename}")
+        except Exception:
+            pass
+    return result
 
 
 # ── Raw tools ────────────────────────────────────────────────────────
