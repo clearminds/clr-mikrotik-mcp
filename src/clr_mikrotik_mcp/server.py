@@ -10,8 +10,10 @@ from fastmcp import FastMCP
 
 from clr_mikrotik_mcp.config import Settings
 from clr_mikrotik_mcp.routeros_client import RouterOSClient
+from clr_mikrotik_mcp.middleware import ToolValidationMiddleware
 
 mcp = FastMCP("MikroTik")
+mcp.add_middleware(ToolValidationMiddleware())
 _client: RouterOSClient | None = None
 
 WRITE_TOOLS = ["mikrotik_ssh", "mikrotik_user_add", "mikrotik_ssh_key_import"]
