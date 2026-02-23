@@ -32,6 +32,14 @@ uvx clr-mikrotik-mcp
 | `MIKROTIK_PASSWORD` | MikroTik password | `your-password` |
 | `MIKROTIK_SSH_KEY` | SSH key path | `/path/to/id_rsa` |
 
+Optional:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MIKROTIK_READ_ONLY` | Run in read-only mode | `false` |
+| `MIKROTIK_TRANSPORT` | Transport protocol (`stdio` or `http`) | `stdio` |
+| `MIKROTIK_LOG_LEVEL` | Log level | `INFO` |
+
 See `--help` for additional options:
 
 ```bash
