@@ -29,7 +29,7 @@ def mikrotik_identity(host: str) -> dict[str, Any]:
     """Get device identity (hostname).
 
     Args:
-        host: Device IP or hostname (e.g. "10.20.10.1").
+        host: Device IP or hostname (e.g. "192.168.88.1").
 
     Returns:
         A dictionary containing the device identity.
@@ -330,7 +330,7 @@ def mikrotik_user_add(
         name: Username for the new account.
         group: Permission group (e.g. "read", "write", "full"). Required.
         password: Password for the new account.
-        address: Source IP restriction (e.g. "10.20.10.0/24"). Empty = any.
+        address: Source IP restriction (e.g. "192.168.88.0/24"). Empty = any.
         comment: Optional comment for the user account.
 
     Returns:

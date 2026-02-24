@@ -74,7 +74,7 @@ class RouterOSClient:
             host: Device IP or hostname.
 
         Returns:
-            The base URL string (e.g. ``https://10.20.10.1``).
+            The base URL string (e.g. ``https://192.168.88.1``).
 
         Raises:
             ConnectionError: If neither port 443 nor port 80 is reachable.
