@@ -455,6 +455,30 @@ def mikrotik_ssh(
     return _client.ssh_command(host, command)
 
 
+# ── Composite init ───────────────────────────────────────────────────
+
+
+def init_composite() -> FastMCP:
+    """Initialize for composite mounting. Returns the FastMCP instance."""
+    global _client
+
+    settings = Settings()
+    creds = settings.load_credentials()
+
+    _client = RouterOSClient(
+        username=creds.get("username", ""),
+        password=creds.get("password", ""),
+        ssh_key=creds.get("ssh_key", ""),
+        devices=creds.get("devices", {}),
+    )
+
+    if settings.mikrotik_read_only and WRITE_TOOLS:
+        for name in WRITE_TOOLS:
+            mcp.remove_tool(name)
+
+    return mcp
+
+
 # ── Main entry point ─────────────────────────────────────────────────
 
 
