@@ -18,7 +18,12 @@ mcp.add_middleware(ToolValidationMiddleware())
 # Imported here (not at the top) on purpose: annotations.py needs ``mcp`` from
 # this module, so importing it before the ``mcp = FastMCP(...)`` line above
 # would be a circular import. Do not move.
-from clr_mikrotik_mcp.annotations import read_tool, write_tool, destructive_tool  # noqa: E402
+from clr_mikrotik_mcp.annotations import (  # noqa: E402
+    destructive_tool,
+    read_tool,
+    remove_non_read_tools,
+    write_tool,
+)
 from clr_mikrotik_mcp._verbs import (  # noqa: E402
     reject_delete_method,
     reject_destructive_ssh,
@@ -27,8 +32,6 @@ from clr_mikrotik_mcp._verbs import (  # noqa: E402
 )
 
 _client: RouterOSClient | None = None
-
-WRITE_TOOLS = ["mikrotik_ssh", "mikrotik_user_add", "mikrotik_ssh_key_import"]
 
 _VALID_SSH_KEY_PREFIXES = ("ssh-ed25519", "ssh-rsa", "ecdsa-sha2-", "sk-ssh-")
 
@@ -612,10 +615,9 @@ def main() -> None:
     )
 
     read_only = args.read_only if args.read_only is not None else settings.mikrotik_read_only
-    if read_only and WRITE_TOOLS:
-        for name in WRITE_TOOLS:
-            mcp.remove_tool(name)
-        logger.info("Read-only mode: %d write tools removed", len(WRITE_TOOLS))
+    if read_only:
+        removed = remove_non_read_tools(mcp)
+        logger.info("Read-only mode: %d non-read tools removed", removed)
 
     try:
         if transport == "stdio":
