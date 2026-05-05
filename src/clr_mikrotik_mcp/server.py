@@ -14,9 +14,24 @@ from clr_mikrotik_mcp.middleware import ToolValidationMiddleware
 
 mcp = FastMCP("MikroTik")
 mcp.add_middleware(ToolValidationMiddleware())
-_client: RouterOSClient | None = None
 
-WRITE_TOOLS = ["mikrotik_ssh", "mikrotik_user_add", "mikrotik_ssh_key_import"]
+# Imported here (not at the top) on purpose: annotations.py needs ``mcp`` from
+# this module, so importing it before the ``mcp = FastMCP(...)`` line above
+# would be a circular import. Do not move.
+from clr_mikrotik_mcp.annotations import (  # noqa: E402
+    destructive_tool,
+    read_tool,
+    remove_non_read_tools,
+    write_tool,
+)
+from clr_mikrotik_mcp._verbs import (  # noqa: E402
+    reject_delete_method,
+    reject_destructive_ssh,
+    require_destructive_ssh,
+    require_read_only_ssh,
+)
+
+_client: RouterOSClient | None = None
 
 _VALID_SSH_KEY_PREFIXES = ("ssh-ed25519", "ssh-rsa", "ecdsa-sha2-", "sk-ssh-")
 
@@ -24,7 +39,7 @@ _VALID_SSH_KEY_PREFIXES = ("ssh-ed25519", "ssh-rsa", "ecdsa-sha2-", "sk-ssh-")
 # ── System tools ─────────────────────────────────────────────────────
 
 
-@mcp.tool
+@read_tool
 def mikrotik_identity(host: str) -> dict[str, Any]:
     """Get device identity (hostname).
 
@@ -37,7 +52,7 @@ def mikrotik_identity(host: str) -> dict[str, Any]:
     return _client.rest_get(host, "/system/identity")
 
 
-@mcp.tool
+@read_tool
 def mikrotik_version(host: str) -> dict[str, Any]:
     """Get RouterOS version, CPU, memory, and uptime.
 
@@ -54,7 +69,7 @@ def mikrotik_version(host: str) -> dict[str, Any]:
     )
 
 
-@mcp.tool
+@read_tool
 def mikrotik_health(host: str) -> Any:
     """Get device health sensors (voltage, temperature, fan speed).
 
@@ -70,7 +85,7 @@ def mikrotik_health(host: str) -> Any:
 # ── Interface tools ──────────────────────────────────────────────────
 
 
-@mcp.tool
+@read_tool
 def mikrotik_interfaces(
     host: str,
     interface_type: str | None = None,
@@ -95,7 +110,7 @@ def mikrotik_interfaces(
     )
 
 
-@mcp.tool
+@read_tool
 def mikrotik_addresses(host: str) -> list[dict[str, Any]]:
     """List all IP addresses on the device.
 
@@ -115,7 +130,7 @@ def mikrotik_addresses(host: str) -> list[dict[str, Any]]:
 # ── L2/L3 tools ─────────────────────────────────────────────────────
 
 
-@mcp.tool
+@read_tool
 def mikrotik_arp(
     host: str,
     interface: str | None = None,
@@ -140,7 +155,7 @@ def mikrotik_arp(
     )
 
 
-@mcp.tool
+@read_tool
 def mikrotik_dhcp_leases(
     host: str,
     server: str | None = None,
@@ -165,7 +180,7 @@ def mikrotik_dhcp_leases(
     )
 
 
-@mcp.tool
+@read_tool
 def mikrotik_routes(
     host: str,
     dst: str | None = None,
@@ -190,7 +205,7 @@ def mikrotik_routes(
     )
 
 
-@mcp.tool
+@read_tool
 def mikrotik_neighbors(host: str) -> list[dict[str, Any]]:
     """List discovered neighbors (LLDP/CDP/MNDP).
 
@@ -210,7 +225,7 @@ def mikrotik_neighbors(host: str) -> list[dict[str, Any]]:
 # ── Firewall tools ───────────────────────────────────────────────────
 
 
-@mcp.tool
+@read_tool
 def mikrotik_firewall(
     host: str,
     chain: str | None = None,
@@ -235,7 +250,7 @@ def mikrotik_firewall(
     )
 
 
-@mcp.tool
+@read_tool
 def mikrotik_nat(host: str) -> list[dict[str, Any]]:
     """List NAT rules.
 
@@ -255,7 +270,7 @@ def mikrotik_nat(host: str) -> list[dict[str, Any]]:
 # ── User & service tools ────────────────────────────────────────────
 
 
-@mcp.tool
+@read_tool
 def mikrotik_users(host: str) -> list[dict[str, Any]]:
     """List all user accounts on the device.
 
@@ -272,7 +287,7 @@ def mikrotik_users(host: str) -> list[dict[str, Any]]:
     )
 
 
-@mcp.tool
+@read_tool
 def mikrotik_ssh_keys(host: str, user: str | None = None) -> list[dict[str, Any]]:
     """List imported SSH public keys, optionally filtered by user.
 
@@ -294,7 +309,7 @@ def mikrotik_ssh_keys(host: str, user: str | None = None) -> list[dict[str, Any]
     )
 
 
-@mcp.tool
+@read_tool
 def mikrotik_services(host: str) -> list[dict[str, Any]]:
     """List IP services (SSH, www, api, winbox, etc.) with status.
 
@@ -311,7 +326,7 @@ def mikrotik_services(host: str) -> list[dict[str, Any]]:
     )
 
 
-@mcp.tool
+@write_tool
 def mikrotik_user_add(
     host: str,
     name: str,
@@ -352,7 +367,7 @@ def mikrotik_user_add(
     return _client.rest_post(host, "/user", body)
 
 
-@mcp.tool
+@write_tool
 def mikrotik_ssh_key_import(
     host: str,
     user: str,
@@ -396,7 +411,7 @@ def mikrotik_ssh_key_import(
 # ── Raw tools ────────────────────────────────────────────────────────
 
 
-@mcp.tool
+@write_tool
 def mikrotik_api(
     host: str,
     path: str,
@@ -418,6 +433,7 @@ def mikrotik_api(
     Returns:
         Parsed JSON from the device, or an error dictionary for unsupported methods.
     """
+    reject_delete_method(method)
     if method.upper() == "GET":
         return _client.rest_get(host, path, proplist=proplist)
     elif method.upper() == "POST":
@@ -430,7 +446,7 @@ def mikrotik_api(
         return {"error": f"Unsupported method: {method}"}
 
 
-@mcp.tool
+@write_tool
 def mikrotik_ssh(
     host: str,
     command: str,
@@ -452,6 +468,85 @@ def mikrotik_ssh(
     Returns:
         Command output as text.
     """
+    reject_destructive_ssh(command)
+    return _client.ssh_command(host, command)
+
+
+@read_tool
+def mikrotik_api_read(
+    host: str,
+    path: str,
+    proplist: str | None = None,
+) -> Any:
+    """Read-only RouterOS REST API call (GET).
+
+    Use ``mikrotik_api`` for non-destructive writes (POST/PUT/PATCH)
+    and ``mikrotik_api_destructive`` for DELETE.
+
+    Args:
+        host: Device IP or hostname.
+        path: REST API path starting with /.
+        proplist: Comma-separated properties to return.
+
+    Returns:
+        Parsed JSON from the device.
+    """
+    return _client.rest_get(host, path, proplist=proplist)
+
+
+@destructive_tool
+def mikrotik_api_destructive(
+    host: str,
+    path: str,
+) -> Any:
+    """Destructive RouterOS REST API call (DELETE).
+
+    Use ``mikrotik_api_read`` for GET and ``mikrotik_api`` for non-destructive
+    writes (POST/PUT/PATCH).
+
+    Args:
+        host: Device IP or hostname.
+        path: REST API path of the resource to delete.
+
+    Returns:
+        Parsed JSON from the device.
+    """
+    return _client.rest_delete(host, path)
+
+
+@read_tool
+def mikrotik_ssh_read(host: str, command: str) -> str:
+    """Read-only RouterOS CLI command via SSH.
+
+    Allowed verbs: print, get, getall, find, monitor, export.
+    Use ``mikrotik_ssh`` for write commands or
+    ``mikrotik_ssh_destructive`` for remove/reset/reboot/shutdown.
+
+    Args:
+        host: Device IP or hostname.
+        command: RouterOS CLI command (e.g. "/interface/bridge/host/print").
+
+    Returns:
+        Command output as text.
+    """
+    require_read_only_ssh(command)
+    return _client.ssh_command(host, command)
+
+
+@destructive_tool
+def mikrotik_ssh_destructive(host: str, command: str) -> str:
+    """Destructive RouterOS CLI command via SSH.
+
+    Allowed verbs: remove, reset-configuration, reboot, shutdown.
+
+    Args:
+        host: Device IP or hostname.
+        command: RouterOS CLI command (e.g. "/system reboot").
+
+    Returns:
+        Command output as text.
+    """
+    require_destructive_ssh(command)
     return _client.ssh_command(host, command)
 
 
@@ -544,10 +639,9 @@ def main() -> None:
     )
 
     read_only = args.read_only if args.read_only is not None else settings.mikrotik_read_only
-    if read_only and WRITE_TOOLS:
-        for name in WRITE_TOOLS:
-            mcp.remove_tool(name)
-        logger.info("Read-only mode: %d write tools removed", len(WRITE_TOOLS))
+    if read_only:
+        removed = remove_non_read_tools(mcp)
+        logger.info("Read-only mode: %d non-read tools removed", removed)
 
     try:
         if transport == "stdio":
