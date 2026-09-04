@@ -417,6 +417,12 @@ def _coerce_body(body: Any) -> dict[str, Any] | None:
     real object, some send the same thing as a string. Rejecting the string
     form makes the tool intermittently unusable for no good reason, so parse
     it here instead.
+
+    NOTE: this function is only reached if the tool SIGNATURE admits ``str``.
+    FastMCP validates arguments against the annotation before the body runs,
+    so a coercion helper behind a ``dict``-only annotation never executes —
+    the call is rejected with "Input should be a valid dictionary" first.
+    That is exactly how the first attempt at this fix failed.
     """
     if body is None or isinstance(body, dict):
         return body
@@ -442,7 +448,7 @@ def mikrotik_api(
     host: str,
     path: str,
     method: str = "GET",
-    body: dict[str, Any] | None = None,
+    body: dict[str, Any] | str | None = None,
     proplist: str | None = None,
 ) -> Any:
     """Execute a raw RouterOS REST API call.
