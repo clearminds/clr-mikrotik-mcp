@@ -63,3 +63,42 @@ def test_method_guards() -> None:
     reject_delete_method("GET")
     with pytest.raises(ToolError):
         reject_delete_method("DELETE")
+
+
+# --- Regression: quoted arguments must not swallow the verb -----------------
+#
+# str.split() tore `comment="Allow Odoo CRM - web"` into five tokens, four of
+# which looked like bare identifiers, so the verb resolved to `web"` and the
+# guards rejected an ordinary command. Observed against a live router.
+
+
+def test_segment_verbs_handles_quoted_arguments() -> None:
+    assert _segment_verbs(
+        '/ipv6/firewall/filter/add comment="Allow Odoo CRM - web" chain=forward'
+    ) == ["add"]
+    assert _segment_verbs('/system/identity/set name="a b c"') == ["set"]
+
+
+def test_segment_verbs_handles_slash_form_paths() -> None:
+    # RouterOS accepts the verb as the final path segment, not only as a
+    # trailing word. Previously this fell through to the fallback and produced
+    # the whole path as the "verb".
+    assert _segment_verbs("/ipv6/firewall/filter/move numbers=*38 destination=*1C") == ["move"]
+    assert _segment_verbs("/ip/firewall/filter/print") == ["print"]
+
+
+def test_segment_verbs_ignores_script_block_contents() -> None:
+    assert _segment_verbs(
+        '/ip/firewall/filter/add comment="x y" place-before=[find comment="Drop rest"]'
+    ) == ["add"]
+
+
+def test_quoted_add_is_accepted_by_the_write_guard() -> None:
+    # add is neither read nor destructive: mikrotik_ssh must accept it.
+    reject_destructive_ssh('/ipv6/firewall/filter/add comment="Allow Odoo CRM - web"')
+
+
+def test_quoted_remove_is_still_classified_destructive() -> None:
+    with pytest.raises(ToolError):
+        reject_destructive_ssh('/ip/firewall/filter/remove [find comment="x y"]')
+    require_destructive_ssh('/ip/firewall/filter/remove [find comment="x y"]')

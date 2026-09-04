@@ -1,12 +1,14 @@
 """MikroTik MCP Server — FastMCP tools for RouterOS management."""
 
 import argparse
+import json
 import logging
 import logging.config
 import sys
 from typing import Any
 
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 
 from clr_mikrotik_mcp.config import Settings
 from clr_mikrotik_mcp.routeros_client import RouterOSClient
@@ -408,6 +410,30 @@ def mikrotik_ssh_key_import(
     return result
 
 
+def _coerce_body(body: Any) -> dict[str, Any] | None:
+    """Accept a JSON object, or a JSON string, as a request body.
+
+    MCP clients differ in how they serialize nested arguments: some send a
+    real object, some send the same thing as a string. Rejecting the string
+    form makes the tool intermittently unusable for no good reason, so parse
+    it here instead.
+    """
+    if body is None or isinstance(body, dict):
+        return body
+    if isinstance(body, str):
+        text = body.strip()
+        if not text:
+            return None
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ToolError(f"body is not valid JSON: {exc}") from exc
+        if not isinstance(parsed, dict):
+            raise ToolError(f"body must be a JSON object, got {type(parsed).__name__}")
+        return parsed
+    raise ToolError(f"body must be an object or JSON string, got {type(body).__name__}")
+
+
 # ── Raw tools ────────────────────────────────────────────────────────
 
 
@@ -426,20 +452,30 @@ def mikrotik_api(
     Args:
         host: Device IP or hostname.
         path: REST API path (e.g. "/interface/bridge/vlan", "/ip/pool").
-        method: HTTP method — GET, POST (add), PUT (set), PATCH, DELETE (remove).
-        body: JSON body for POST/PUT/PATCH (e.g. {"address": "10.0.0.1/24", "interface": "ether1"}).
+        method: HTTP method, using RouterOS REST semantics —
+            GET (read), PUT (add), PATCH (set/update an existing item by id),
+            POST (invoke a command such as /move), DELETE (remove).
+            Note PUT adds and PATCH updates; they are not interchangeable.
+        body: JSON body for PUT/PATCH/POST (e.g. {"address": "10.0.0.1/24", "interface": "ether1"}).
+            Accepts a JSON object, or a JSON string for clients that serialize
+            nested arguments.
         proplist: Comma-separated properties to return (e.g. "name,address,interface").
 
     Returns:
         Parsed JSON from the device, or an error dictionary for unsupported methods.
     """
     reject_delete_method(method)
+    body = _coerce_body(body)
     if method.upper() == "GET":
         return _client.rest_get(host, path, proplist=proplist)
     elif method.upper() == "POST":
         return _client.rest_post(host, path, body)
-    elif method.upper() in ("PUT", "PATCH"):
+    elif method.upper() == "PUT":
         return _client.rest_put(host, path, body)
+    elif method.upper() == "PATCH":
+        # NOT rest_put: RouterOS treats PUT as add and PATCH as update, so
+        # sending a PATCH as PUT silently creates instead of updating.
+        return _client.rest_patch(host, path, body)
     elif method.upper() == "DELETE":
         return _client.rest_delete(host, path)
     else:

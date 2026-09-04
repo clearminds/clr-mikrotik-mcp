@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 
 from fastmcp.exceptions import ToolError
 
@@ -10,47 +11,67 @@ _READ_VERBS = frozenset({"print", "get", "getall", "find", "monitor", "export"})
 _DESTRUCTIVE_VERBS = frozenset({"remove", "reset-configuration", "reboot", "shutdown"})
 
 
+def _tokenize(segment: str) -> list[str]:
+    """Split a segment into tokens, keeping quoted spans together.
+
+    ``str.split()`` tears ``comment="Allow Odoo CRM - web"`` into five tokens,
+    four of which look like bare identifiers. That made the verb resolve to
+    ``web"`` and rejected a perfectly ordinary command.
+    """
+    try:
+        return shlex.split(segment, posix=False)
+    except ValueError:
+        # Unbalanced quotes — fall back rather than refuse to classify.
+        return segment.split()
+
+
 def _segment_verbs(command: str) -> list[str]:
     """Extract the verb of each ``;``- or newline-separated segment.
 
-    RouterOS CLI verbs sit at the end of the path-and-verb prefix and before
-    any arguments. We tokenize the segment, drop arg-like tokens (containing
-    ``=`` or starting with ``[``), then take the last "bare" identifier
-    (one that does not start with ``/`` or ``:``).
+    RouterOS accepts the verb either as the last word of a space-separated
+    path (``/ip address print``) or as the final element of a slash path
+    (``/ip/address/print``). Both are handled.
+
+    The verb always appears BEFORE the first argument, so tokens from the
+    first argument onward are never considered. An argument is ``key=value``
+    or a ``[...]`` script block.
 
     Examples::
 
-        "/interface print"            -> ["print"]
-        "/ip address print"           -> ["print"]
-        "/system identity get"        -> ["get"]
-        "/system reboot"              -> ["reboot"]
-        "/export"                     -> ["export"]   (fallback: strip leading /)
-        "/ip address remove [find]"   -> ["remove"]
-        "/interface set ether1 d=y"   -> ["ether1"]   (set takes a positional;
-                                                       the last bare token is
-                                                       the positional, which is
-                                                       not a known read verb,
-                                                       so the read-guard rejects)
+        "/interface print"                     -> ["print"]
+        "/system identity get"                 -> ["get"]
+        "/system reboot"                       -> ["reboot"]
+        "/export"                              -> ["export"]
+        "/ip address remove [find]"            -> ["remove"]
+        "/ipv6/firewall/filter/add comment=\"a b\"" -> ["add"]
+        "/ipv6/firewall/filter/move numbers=1" -> ["move"]
+        "/interface set ether1 d=y"            -> ["ether1"]  (positional; the
+                                                   read-guard rejects it, which
+                                                   is the intended behaviour)
     """
     verbs: list[str] = []
     for raw in re.split(r"[\n;]", command):
         seg = raw.strip()
         if not seg:
             continue
-        # Drop arg-like tokens: foo=bar (kwargs) and [find ...] (script blocks).
-        toks = [t for t in seg.split() if "=" not in t and not t.startswith("[")]
-        # Verb = last bare identifier (not a /path or :directive).
-        verb = ""
-        for t in reversed(toks):
-            if not t.startswith("/") and not t.startswith(":"):
-                verb = t.lower()
+        # The verb precedes the first argument; stop there.
+        head: list[str] = []
+        for tok in _tokenize(seg):
+            if "=" in tok or tok.startswith("["):
                 break
-        # Fallback for verb-only segments like "/export": strip leading slashes
-        # from the last token so "/export" -> "export".
-        if not verb and toks:
-            tail = toks[-1].lstrip("/")
-            if tail and not tail.startswith(":"):
-                verb = tail.lower()
+            head.append(tok)
+        verb = ""
+        for tok in reversed(head):
+            if tok.startswith(":"):
+                continue
+            if tok.startswith("/"):
+                # Slash form: the verb is the final path segment.
+                tail = tok.rstrip("/").rsplit("/", 1)[-1]
+                if tail and not tail.startswith(":"):
+                    verb = tail.lower()
+                break
+            verb = tok.lower()
+            break
         if verb:
             verbs.append(verb)
     return verbs

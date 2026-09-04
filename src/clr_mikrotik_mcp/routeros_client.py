@@ -176,6 +176,36 @@ class RouterOSClient:
                 return None
             return resp.json()
 
+    def rest_patch(self, host: str, path: str, body: dict[str, Any] | None = None) -> Any:
+        """Send a PATCH request to the RouterOS REST API.
+
+        RouterOS distinguishes these: ``PUT /rest/<path>`` ADDS an item, while
+        ``PATCH /rest/<path>/<id>`` UPDATES an existing one. Routing PATCH
+        through :meth:`rest_put` therefore turns an intended update into a
+        create, which is why it has its own method.
+
+        Args:
+            host: Device IP or hostname.
+            path: API path including the item id (e.g. "/user/*8").
+            body: JSON body of properties to change.
+
+        Returns:
+            Parsed JSON response, or None if the response body is empty.
+        """
+        base_url = self._get_base_url(host)
+        username, password = self._get_auth(host)
+        with httpx.Client(
+            base_url=base_url,
+            auth=(username, password),
+            verify=False,
+            timeout=30.0,
+        ) as client:
+            resp = client.patch(f"/rest{path}", json=body or {})
+            resp.raise_for_status()
+            if not resp.content:
+                return None
+            return resp.json()
+
     def rest_delete(self, host: str, path: str) -> Any:
         """Send a DELETE request to the RouterOS REST API.
 
