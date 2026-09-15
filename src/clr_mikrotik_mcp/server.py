@@ -191,7 +191,7 @@ def routes(
 
     Args:
         host: Device IP or hostname.
-        dst: Filter by destination prefix (e.g. "10.20.22.0/24").
+        dst: Filter by destination prefix (e.g. "192.0.2.0/24").
 
     Returns:
         A list of route entry dictionaries.
