@@ -1,4 +1,4 @@
-"""Tests for mikrotik_api's `body` argument.
+"""Tests for api's `body` argument.
 
 The first attempt at accepting a JSON-string body added a coercion helper but
 left the annotation as ``dict[str, Any] | None``. FastMCP validates arguments
@@ -24,7 +24,7 @@ from clr_mikrotik_mcp.server import _coerce_body, mcp
 def _body_schema() -> dict:
     async def get() -> dict:
         tools = await mcp.get_tools()
-        return tools["mikrotik_api"].parameters["properties"]["body"]
+        return tools["api"].parameters["properties"]["body"]
 
     return asyncio.run(get())
 
@@ -33,7 +33,7 @@ def test_schema_accepts_a_json_string() -> None:
     """The contract must admit a string, or the coercion below is unreachable."""
     types = {opt.get("type") for opt in _body_schema()["anyOf"]}
     assert "string" in types, (
-        "mikrotik_api.body must accept a string: clients that serialize nested "
+        "api.body must accept a string: clients that serialize nested "
         "arguments are otherwise rejected before _coerce_body can parse them"
     )
 

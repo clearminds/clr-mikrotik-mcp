@@ -1,4 +1,4 @@
-"""Verb-guard helpers for mikrotik_ssh / mikrotik_api splits."""
+"""Verb-guard helpers for ssh / api splits."""
 
 from __future__ import annotations
 
@@ -82,8 +82,8 @@ def require_read_only_ssh(command: str) -> None:
     for v in _segment_verbs(command):
         if v not in _READ_VERBS:
             raise ToolError(
-                f"Verb {v!r} not allowed in mikrotik_ssh_read; "
-                f"use mikrotik_ssh or mikrotik_ssh_destructive instead."
+                f"Verb {v!r} not allowed in ssh_read; "
+                f"use ssh or ssh_destructive instead."
             )
 
 
@@ -93,7 +93,7 @@ def require_destructive_ssh(command: str) -> None:
         if v not in _DESTRUCTIVE_VERBS:
             raise ToolError(
                 f"Verb {v!r} is not destructive; "
-                f"use mikrotik_ssh or mikrotik_ssh_read instead."
+                f"use ssh or ssh_read instead."
             )
 
 
@@ -103,31 +103,31 @@ def reject_destructive_ssh(command: str) -> None:
         if v in _DESTRUCTIVE_VERBS:
             raise ToolError(
                 f"Verb {v!r} is destructive; "
-                f"use mikrotik_ssh_destructive instead."
+                f"use ssh_destructive instead."
             )
 
 
 def require_get_method(method: str) -> None:
-    """For mikrotik_api_read: only GET allowed."""
+    """For api_read: only GET allowed."""
     if method.upper() != "GET":
         raise ToolError(
-            f"method={method!r} not allowed in mikrotik_api_read; "
-            f"use mikrotik_api or mikrotik_api_destructive instead."
+            f"method={method!r} not allowed in api_read; "
+            f"use api or api_destructive instead."
         )
 
 
 def require_delete_method(method: str) -> None:
-    """For mikrotik_api_destructive: only DELETE allowed."""
+    """For api_destructive: only DELETE allowed."""
     if method.upper() != "DELETE":
         raise ToolError(
             f"method={method!r} is not destructive; "
-            f"use mikrotik_api or mikrotik_api_read instead."
+            f"use api or api_read instead."
         )
 
 
 def reject_delete_method(method: str) -> None:
-    """For mikrotik_api: refuse DELETE (use destructive variant)."""
+    """For api: refuse DELETE (use destructive variant)."""
     if method.upper() == "DELETE":
         raise ToolError(
-            "method=DELETE is destructive; use mikrotik_api_destructive instead."
+            "method=DELETE is destructive; use api_destructive instead."
         )

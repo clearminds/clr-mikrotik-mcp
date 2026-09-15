@@ -94,7 +94,7 @@ def test_segment_verbs_ignores_script_block_contents() -> None:
 
 
 def test_quoted_add_is_accepted_by_the_write_guard() -> None:
-    # add is neither read nor destructive: mikrotik_ssh must accept it.
+    # add is neither read nor destructive: ssh must accept it.
     reject_destructive_ssh('/ipv6/firewall/filter/add comment="Allow Odoo CRM - web"')
 
 

@@ -42,7 +42,7 @@ _VALID_SSH_KEY_PREFIXES = ("ssh-ed25519", "ssh-rsa", "ecdsa-sha2-", "sk-ssh-")
 
 
 @read_tool
-def mikrotik_identity(host: str) -> dict[str, Any]:
+def identity(host: str) -> dict[str, Any]:
     """Get device identity (hostname).
 
     Args:
@@ -55,7 +55,7 @@ def mikrotik_identity(host: str) -> dict[str, Any]:
 
 
 @read_tool
-def mikrotik_version(host: str) -> dict[str, Any]:
+def version(host: str) -> dict[str, Any]:
     """Get RouterOS version, CPU, memory, and uptime.
 
     Args:
@@ -72,7 +72,7 @@ def mikrotik_version(host: str) -> dict[str, Any]:
 
 
 @read_tool
-def mikrotik_health(host: str) -> Any:
+def health(host: str) -> Any:
     """Get device health sensors (voltage, temperature, fan speed).
 
     Args:
@@ -88,7 +88,7 @@ def mikrotik_health(host: str) -> Any:
 
 
 @read_tool
-def mikrotik_interfaces(
+def interfaces(
     host: str,
     interface_type: str | None = None,
 ) -> list[dict[str, Any]]:
@@ -113,7 +113,7 @@ def mikrotik_interfaces(
 
 
 @read_tool
-def mikrotik_addresses(host: str) -> list[dict[str, Any]]:
+def addresses(host: str) -> list[dict[str, Any]]:
     """List all IP addresses on the device.
 
     Args:
@@ -133,7 +133,7 @@ def mikrotik_addresses(host: str) -> list[dict[str, Any]]:
 
 
 @read_tool
-def mikrotik_arp(
+def arp(
     host: str,
     interface: str | None = None,
 ) -> list[dict[str, Any]]:
@@ -158,7 +158,7 @@ def mikrotik_arp(
 
 
 @read_tool
-def mikrotik_dhcp_leases(
+def dhcp_leases(
     host: str,
     server: str | None = None,
 ) -> list[dict[str, Any]]:
@@ -183,7 +183,7 @@ def mikrotik_dhcp_leases(
 
 
 @read_tool
-def mikrotik_routes(
+def routes(
     host: str,
     dst: str | None = None,
 ) -> list[dict[str, Any]]:
@@ -208,7 +208,7 @@ def mikrotik_routes(
 
 
 @read_tool
-def mikrotik_neighbors(host: str) -> list[dict[str, Any]]:
+def neighbors(host: str) -> list[dict[str, Any]]:
     """List discovered neighbors (LLDP/CDP/MNDP).
 
     Args:
@@ -228,7 +228,7 @@ def mikrotik_neighbors(host: str) -> list[dict[str, Any]]:
 
 
 @read_tool
-def mikrotik_firewall(
+def firewall(
     host: str,
     chain: str | None = None,
 ) -> list[dict[str, Any]]:
@@ -253,7 +253,7 @@ def mikrotik_firewall(
 
 
 @read_tool
-def mikrotik_nat(host: str) -> list[dict[str, Any]]:
+def nat(host: str) -> list[dict[str, Any]]:
     """List NAT rules.
 
     Args:
@@ -273,7 +273,7 @@ def mikrotik_nat(host: str) -> list[dict[str, Any]]:
 
 
 @read_tool
-def mikrotik_users(host: str) -> list[dict[str, Any]]:
+def users(host: str) -> list[dict[str, Any]]:
     """List all user accounts on the device.
 
     Args:
@@ -290,7 +290,7 @@ def mikrotik_users(host: str) -> list[dict[str, Any]]:
 
 
 @read_tool
-def mikrotik_ssh_keys(host: str, user: str | None = None) -> list[dict[str, Any]]:
+def ssh_keys(host: str, user: str | None = None) -> list[dict[str, Any]]:
     """List imported SSH public keys, optionally filtered by user.
 
     Args:
@@ -312,7 +312,7 @@ def mikrotik_ssh_keys(host: str, user: str | None = None) -> list[dict[str, Any]
 
 
 @read_tool
-def mikrotik_services(host: str) -> list[dict[str, Any]]:
+def services(host: str) -> list[dict[str, Any]]:
     """List IP services (SSH, www, api, winbox, etc.) with status.
 
     Args:
@@ -329,7 +329,7 @@ def mikrotik_services(host: str) -> list[dict[str, Any]]:
 
 
 @write_tool
-def mikrotik_user_add(
+def user_add(
     host: str,
     name: str,
     group: str,
@@ -370,7 +370,7 @@ def mikrotik_user_add(
 
 
 @write_tool
-def mikrotik_ssh_key_import(
+def ssh_key_import(
     host: str,
     user: str,
     public_key: str,
@@ -444,7 +444,7 @@ def _coerce_body(body: Any) -> dict[str, Any] | None:
 
 
 @write_tool
-def mikrotik_api(
+def api(
     host: str,
     path: str,
     method: str = "GET",
@@ -489,7 +489,7 @@ def mikrotik_api(
 
 
 @write_tool
-def mikrotik_ssh(
+def ssh(
     host: str,
     command: str,
 ) -> str:
@@ -515,15 +515,15 @@ def mikrotik_ssh(
 
 
 @read_tool
-def mikrotik_api_read(
+def api_read(
     host: str,
     path: str,
     proplist: str | None = None,
 ) -> Any:
     """Read-only RouterOS REST API call (GET).
 
-    Use ``mikrotik_api`` for non-destructive writes (POST/PUT/PATCH)
-    and ``mikrotik_api_destructive`` for DELETE.
+    Use ``api`` for non-destructive writes (POST/PUT/PATCH)
+    and ``api_destructive`` for DELETE.
 
     Args:
         host: Device IP or hostname.
@@ -537,13 +537,13 @@ def mikrotik_api_read(
 
 
 @destructive_tool
-def mikrotik_api_destructive(
+def api_destructive(
     host: str,
     path: str,
 ) -> Any:
     """Destructive RouterOS REST API call (DELETE).
 
-    Use ``mikrotik_api_read`` for GET and ``mikrotik_api`` for non-destructive
+    Use ``api_read`` for GET and ``api`` for non-destructive
     writes (POST/PUT/PATCH).
 
     Args:
@@ -557,12 +557,12 @@ def mikrotik_api_destructive(
 
 
 @read_tool
-def mikrotik_ssh_read(host: str, command: str) -> str:
+def ssh_read(host: str, command: str) -> str:
     """Read-only RouterOS CLI command via SSH.
 
     Allowed verbs: print, get, getall, find, monitor, export.
-    Use ``mikrotik_ssh`` for write commands or
-    ``mikrotik_ssh_destructive`` for remove/reset/reboot/shutdown.
+    Use ``ssh`` for write commands or
+    ``ssh_destructive`` for remove/reset/reboot/shutdown.
 
     Args:
         host: Device IP or hostname.
@@ -576,7 +576,7 @@ def mikrotik_ssh_read(host: str, command: str) -> str:
 
 
 @destructive_tool
-def mikrotik_ssh_destructive(host: str, command: str) -> str:
+def ssh_destructive(host: str, command: str) -> str:
     """Destructive RouterOS CLI command via SSH.
 
     Allowed verbs: remove, reset-configuration, reboot, shutdown.
