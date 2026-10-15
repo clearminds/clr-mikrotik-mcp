@@ -654,6 +654,8 @@ def main() -> None:
         password=creds.get("password", ""),
         ssh_key=creds.get("ssh_key", ""),
         devices=creds.get("devices", {}),
+        ca_bundle=settings.mikrotik_ca_bundle,
+        tls_names=settings.mikrotik_tls_names,
     )
 
     read_only = args.read_only if args.read_only is not None else settings.mikrotik_read_only
