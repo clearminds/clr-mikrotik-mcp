@@ -1,7 +1,9 @@
 """REST and SSH clients for MikroTik RouterOS devices."""
 
+import ipaddress
 import logging
 import socket
+import ssl
 from typing import Any
 
 import httpx
@@ -20,7 +22,14 @@ class RouterOSClient:
         username: Default username for device authentication.
         password: Default password for device authentication.
         ssh_key: Path to SSH private key file, or empty string if unused.
-        devices: Per-device credential overrides keyed by hostname/IP.
+        devices: Per-device credential overrides keyed by hostname/IP. An
+            entry may also carry ``tls_name``, the DNS name its certificate
+            is issued for.
+        ca_bundle: Path to a PEM CA bundle. When set, the REST API is only
+            reached over verified HTTPS; when empty, certificates are not
+            verified and plain HTTP is used as a fallback (legacy behaviour).
+        tls_names: Host/IP -> certificate DNS name, used when callers address
+            a router by IP. A per-device ``tls_name`` takes precedence.
     """
 
     def __init__(
@@ -29,11 +38,23 @@ class RouterOSClient:
         password: str = "",
         ssh_key: str = "",
         devices: dict[str, dict[str, str]] | None = None,
+        ca_bundle: str = "",
+        tls_names: dict[str, str] | None = None,
     ) -> None:
         self.username = username
         self.password = password
         self.ssh_key = ssh_key
         self.devices = devices or {}
+        self.ca_bundle = ca_bundle
+        self.tls_names = tls_names or {}
+        self._ssl_context: ssl.SSLContext | None = None
+        self._warned_unverified = False
+        if ca_bundle:
+            # Built once (fails fast on a missing/invalid file); contexts are
+            # safe to share between connections.
+            self._ssl_context = ssl.create_default_context(cafile=ca_bundle)
+            self._ssl_context.check_hostname = True
+            self._ssl_context.verify_mode = ssl.CERT_REQUIRED
 
     def _get_auth(self, host: str) -> tuple[str, str]:
         """Return (username, password) for a specific host.
@@ -70,6 +91,9 @@ class RouterOSClient:
     def _get_base_url(self, host: str) -> str:
         """Probe HTTPS then HTTP, return base URL.
 
+        With a CA bundle configured only HTTPS is tried: falling back to
+        http:80 would silently downgrade a verified connection to cleartext.
+
         Args:
             host: Device IP or hostname.
 
@@ -77,13 +101,97 @@ class RouterOSClient:
             The base URL string (e.g. ``https://192.168.88.1``).
 
         Raises:
-            ConnectionError: If neither port 443 nor port 80 is reachable.
+            ConnectionError: If no permitted port is reachable.
         """
         if self._port_open(host, 443):
             return f"https://{host}"
+        if self._ssl_context is not None:
+            raise ConnectionError(
+                f"Cannot connect to {host} on port 443; not falling back to "
+                "plain HTTP because MIKROTIK_CA_BUNDLE is set"
+            )
         if self._port_open(host, 80):
             return f"http://{host}"
         raise ConnectionError(f"Cannot connect to {host} (ports 443 and 80 closed)")
+
+    def _tls_name(self, host: str) -> str | None:
+        """Return the DNS name to verify ``host``'s certificate against.
+
+        Per-device ``tls_name`` wins over ``tls_names``; a host that is not an
+        IP address is its own name.
+
+        Args:
+            host: Device IP or hostname as passed by the caller.
+
+        Returns:
+            The certificate name, or None for an IP with no known name.
+        """
+        name = self.devices.get(host, {}).get("tls_name") or self.tls_names.get(host)
+        if name:
+            return name
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            return host
+        return None
+
+    def _client_kwargs(self, host: str) -> dict[str, Any]:
+        """Build the ``httpx.Client`` kwargs for a REST call to ``host``.
+
+        With a CA bundle, the connection always goes to ``host`` as given (no
+        DNS lookup of the certificate name is needed, so this keeps working
+        when internal DNS is down or a name resolves to a different address),
+        while TLS verification, SNI and the Host header use the certificate
+        name. The name is applied through httpx's ``sni_hostname`` request
+        extension, which httpcore passes as ``server_hostname`` to the SSL
+        context, so ``check_hostname`` validates against it.
+
+        Args:
+            host: Device IP or hostname.
+
+        Returns:
+            Keyword arguments for ``httpx.Client``.
+
+        Raises:
+            ConnectionError: If the CA bundle is set and ``host`` is an IP
+                with no known certificate name (verification would be
+                impossible, and skipping it silently is not acceptable).
+        """
+        if self._ssl_context is None:
+            if not self._warned_unverified:
+                logger.warning(
+                    "MIKROTIK_CA_BUNDLE is not set: RouterOS TLS certificates are "
+                    "NOT verified and plain HTTP is used if HTTPS is unreachable"
+                )
+                self._warned_unverified = True
+            return {
+                "base_url": self._get_base_url(host),
+                "auth": self._get_auth(host),
+                "verify": False,
+                "timeout": 30.0,
+            }
+
+        name = self._tls_name(host)
+        if name is None:
+            raise ConnectionError(
+                f"{host} is an IP address with no known TLS name, so its certificate "
+                "cannot be verified. Use the router's DNS name, or map the IP in "
+                'MIKROTIK_TLS_NAMES (or a "tls_name" in credentials.json devices).'
+            )
+        kwargs: dict[str, Any] = {
+            "base_url": self._get_base_url(host),
+            "auth": self._get_auth(host),
+            "verify": self._ssl_context,
+            "timeout": 30.0,
+        }
+        if name != host:
+            kwargs["headers"] = {"Host": name}
+
+            def _set_sni(request: httpx.Request) -> None:
+                request.extensions["sni_hostname"] = name
+
+            kwargs["event_hooks"] = {"request": [_set_sni]}
+        return kwargs
 
     def rest_get(
         self,
@@ -103,18 +211,11 @@ class RouterOSClient:
         Returns:
             Parsed JSON response, or None if the response body is empty.
         """
-        base_url = self._get_base_url(host)
-        username, password = self._get_auth(host)
         params = dict(filters or {})
         if proplist:
             params[".proplist"] = proplist
 
-        with httpx.Client(
-            base_url=base_url,
-            auth=(username, password),
-            verify=False,
-            timeout=30.0,
-        ) as client:
+        with httpx.Client(**self._client_kwargs(host)) as client:
             resp = client.get(f"/rest{path}", params=params)
             resp.raise_for_status()
             if not resp.content:
@@ -137,14 +238,7 @@ class RouterOSClient:
         Returns:
             Parsed JSON response, or None if the response body is empty.
         """
-        base_url = self._get_base_url(host)
-        username, password = self._get_auth(host)
-        with httpx.Client(
-            base_url=base_url,
-            auth=(username, password),
-            verify=False,
-            timeout=30.0,
-        ) as client:
+        with httpx.Client(**self._client_kwargs(host)) as client:
             resp = client.post(f"/rest{path}", json=body or {})
             resp.raise_for_status()
             if not resp.content:
@@ -162,14 +256,7 @@ class RouterOSClient:
         Returns:
             Parsed JSON response, or None if the response body is empty.
         """
-        base_url = self._get_base_url(host)
-        username, password = self._get_auth(host)
-        with httpx.Client(
-            base_url=base_url,
-            auth=(username, password),
-            verify=False,
-            timeout=30.0,
-        ) as client:
+        with httpx.Client(**self._client_kwargs(host)) as client:
             resp = client.put(f"/rest{path}", json=body or {})
             resp.raise_for_status()
             if not resp.content:
@@ -192,14 +279,7 @@ class RouterOSClient:
         Returns:
             Parsed JSON response, or None if the response body is empty.
         """
-        base_url = self._get_base_url(host)
-        username, password = self._get_auth(host)
-        with httpx.Client(
-            base_url=base_url,
-            auth=(username, password),
-            verify=False,
-            timeout=30.0,
-        ) as client:
+        with httpx.Client(**self._client_kwargs(host)) as client:
             resp = client.patch(f"/rest{path}", json=body or {})
             resp.raise_for_status()
             if not resp.content:
@@ -216,14 +296,7 @@ class RouterOSClient:
         Returns:
             Parsed JSON response, or None if the response body is empty.
         """
-        base_url = self._get_base_url(host)
-        username, password = self._get_auth(host)
-        with httpx.Client(
-            base_url=base_url,
-            auth=(username, password),
-            verify=False,
-            timeout=30.0,
-        ) as client:
+        with httpx.Client(**self._client_kwargs(host)) as client:
             resp = client.delete(f"/rest{path}")
             resp.raise_for_status()
             if not resp.content:

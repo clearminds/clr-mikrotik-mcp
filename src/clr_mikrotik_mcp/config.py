@@ -3,10 +3,10 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, NoDecode
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,27 @@ class Settings(BaseSettings):
     mikrotik_transport: str = "stdio"
     mikrotik_log_level: str = "INFO"
     mikrotik_read_only: bool = False
+    # Path to a PEM CA bundle used to verify the routers' www-ssl certificate.
+    # Empty keeps the legacy behaviour (no verification, http:80 fallback).
+    mikrotik_ca_bundle: str = ""
+    # JSON object mapping a host/IP to the DNS name its certificate is issued
+    # for, e.g. {"10.199.0.40": "sto-gar-ar2-1.lo.int.clearminds.se"}.
+    # NoDecode: parsed by the validator below so an empty value is allowed.
+    mikrotik_tls_names: Annotated[dict[str, str], NoDecode] = {}
+
+    @field_validator("mikrotik_tls_names", mode="before")
+    @classmethod
+    def _parse_tls_names(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            if not v.strip():
+                return {}
+            try:
+                v = json.loads(v)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"MIKROTIK_TLS_NAMES must be a JSON object: {e}") from e
+            if not isinstance(v, dict):
+                raise ValueError("MIKROTIK_TLS_NAMES must be a JSON object of host -> DNS name")
+        return v
 
     @field_validator("mikrotik_read_only", mode="before")
     @classmethod
