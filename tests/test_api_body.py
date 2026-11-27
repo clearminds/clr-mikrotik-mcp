@@ -23,8 +23,8 @@ from clr_mikrotik_mcp.server import _coerce_body, mcp
 
 def _body_schema() -> dict:
     async def get() -> dict:
-        tools = await mcp.get_tools()
-        return tools["api"].parameters["properties"]["body"]
+        tool = await mcp.get_tool("api")
+        return tool.parameters["properties"]["body"]
 
     return asyncio.run(get())
 
